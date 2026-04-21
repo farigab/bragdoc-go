@@ -155,8 +155,7 @@ request with a clear description and tests where appropriate.
 
 ## License
 
-No license file is included in the repository. Add a `LICENSE` file to clarify
-the project's license.
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
 ## Contact
 
