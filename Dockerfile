@@ -11,8 +11,8 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-s -w' \
-    -o /app/bragDev \
-    ./cmd/bragDev
+    -o /app/bragdev \
+    ./cmd/bragdev
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
 FROM alpine:3.19
@@ -25,7 +25,7 @@ RUN apk add --no-cache ca-certificates && \
 WORKDIR /app
 
 # Copia apenas o necessário do stage de build
-COPY --from=build /app/bragDev       ./bragDev
+COPY --from=build /app/bragdev       ./bragdev
 COPY --from=build /src/db/migrations ./db/migrations
 
 # Ajusta dono dos arquivos para o usuário não-root
@@ -35,4 +35,4 @@ USER app
 
 EXPOSE 8080
 
-ENTRYPOINT ["./bragDev"]
+ENTRYPOINT ["./bragdev"]
