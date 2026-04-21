@@ -6,11 +6,7 @@ This project follows the "Keep a Changelog" format and Semantic Versioning.
 
 Generated: 2026-04-20
 
-## [Unreleased]
-
-Summary of changes since the last release.
-
-### Added
+## Added
 
 - GitHub integration — Added GitHub OAuth flow and commit-fetching integration. (Commit: 097573c, 2026-04-20; Author: Gabriel Farias)
 - Gemini AI integration — Added `GenerationConfig` (temperature, topP, topK, maxOutputTokens) and `WithGenerationConfig()` helper; client now sends `generationConfig` in requests and uses sensible defaults (temperature=0.4); HTTP client timeout increased to 30s. (File: internal/integration/gemini.go)
@@ -24,8 +20,3 @@ Summary of changes since the last release.
 ### Contributors
 
 - Gabriel Farias — primary contributor for the changes listed above.
-
-### Notes
-
-- This changelog was generated from commit messages. For formal releases, add a version header (for example `## [v0.1.0] - 2026-04-20`) and move items from `Unreleased` under that version.
-- If you prefer the changelog in Portuguese or want different phrasing, I can translate or adjust it.
