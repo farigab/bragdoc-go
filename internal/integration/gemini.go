@@ -15,19 +15,51 @@ type AIReportGenerator interface {
 	GenerateReport(prompt string) (string, error)
 }
 
+// GenerationConfig holds tunable parameters for the Gemini generation API.
+type GenerationConfig struct {
+	Temperature     float64 `json:"temperature,omitempty"`
+	TopP            float64 `json:"topP,omitempty"`
+	TopK            int     `json:"topK,omitempty"`
+	MaxOutputTokens int     `json:"maxOutputTokens,omitempty"`
+}
+
 // GeminiClient is a tolerant client for Google Gemini-like endpoints.
 type GeminiClient struct {
-	client *http.Client
-	apiKey string
-	apiUrl string
-	model  string
+	client           *http.Client
+	apiKey           string
+	apiUrl           string
+	model            string
+	generationConfig GenerationConfig
+}
+
+// DefaultGenerationConfig returns sensible defaults for report generation.
+func DefaultGenerationConfig() GenerationConfig {
+	return GenerationConfig{
+		Temperature:     0.4,
+		TopP:            0.95,
+		TopK:            40,
+		MaxOutputTokens: 4096,
+	}
 }
 
 func NewGeminiClient(apiKey, apiUrl, model string) *GeminiClient {
 	if apiUrl == "" {
 		apiUrl = "https://generativelanguage.googleapis.com/v1"
 	}
-	return &GeminiClient{client: &http.Client{Timeout: 20 * time.Second}, apiKey: apiKey, apiUrl: apiUrl, model: model}
+	return &GeminiClient{
+		client:           &http.Client{Timeout: 30 * time.Second},
+		apiKey:           apiKey,
+		apiUrl:           apiUrl,
+		model:            model,
+		generationConfig: DefaultGenerationConfig(),
+	}
+}
+
+// WithGenerationConfig returns a copy of the client with the given config.
+func (g *GeminiClient) WithGenerationConfig(cfg GenerationConfig) *GeminiClient {
+	cp := *g
+	cp.generationConfig = cfg
+	return &cp
 }
 
 // GenerateReport sends a prompt and extracts text from multiple response shapes.
@@ -46,6 +78,7 @@ func (g *GeminiClient) GenerateReport(prompt string) (string, error) {
 				},
 			},
 		},
+		"generationConfig": g.generationConfig,
 	}
 
 	jb, err := json.Marshal(body)

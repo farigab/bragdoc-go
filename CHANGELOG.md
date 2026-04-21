@@ -13,6 +13,7 @@ Summary of changes since the last release.
 ### Added
 
 - GitHub integration — Added GitHub OAuth flow and commit-fetching integration. (Commit: 097573c, 2026-04-20; Author: Gabriel Farias)
+- Gemini AI integration — Added `GenerationConfig` (temperature, topP, topK, maxOutputTokens) and `WithGenerationConfig()` helper; client now sends `generationConfig` in requests and uses sensible defaults (temperature=0.4); HTTP client timeout increased to 30s. (File: internal/integration/gemini.go)
 - Report response enhancements — Include `generated_at` timestamp and `report_type` fields in report responses for improved traceability. (Commit: 94f8eae, 2026-04-20; Author: Gabriel Farias)
 - JWT refresh rotation — Implement refresh-token rotation in the authentication middleware to improve security. (Commit: 860f80d, 2026-04-20; Author: Gabriel Farias)
 
