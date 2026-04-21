@@ -7,14 +7,6 @@ CREATE TABLE IF NOT EXISTS users (
     github_access_token TEXT
 );
 
-CREATE TABLE IF NOT EXISTS achievements (
-    id BIGSERIAL PRIMARY KEY,
-    title TEXT NOT NULL,
-    description TEXT,
-    category VARCHAR(255) NOT NULL,
-    date DATE NOT NULL,
-    user_login VARCHAR(100) NOT NULL REFERENCES users(login)
-);
 
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     token VARCHAR(36) PRIMARY KEY,
@@ -25,5 +17,4 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_achievements_user ON achievements(user_login);
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_login);
