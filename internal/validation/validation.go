@@ -3,6 +3,7 @@ package validation
 
 import (
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -46,10 +47,10 @@ func ValidateRepositories(repos []string) error {
 	if len(repos) == 0 {
 		return nil // allow empty — caller can decide if required
 	}
-	for _, r := range repos {
-		if r == "" {
-			return errors.New("repositories contains empty name")
-		}
+
+	if slices.Contains(repos, ""){
+		return errors.New("repositories cannot contain empty values")
 	}
+
 	return nil
 }
