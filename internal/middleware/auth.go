@@ -12,6 +12,7 @@ import (
 	"github.com/farigab/bragdev-go/internal/config"
 	"github.com/farigab/bragdev-go/internal/cookies"
 	"github.com/farigab/bragdev-go/internal/domain"
+	"github.com/farigab/bragdev-go/internal/logger"
 	"github.com/farigab/bragdev-go/internal/repository"
 	"github.com/farigab/bragdev-go/internal/security"
 )
@@ -74,7 +75,14 @@ func extractValidLogin(jwtSvc security.TokenService, r *http.Request) string {
 	return userLogin
 }
 
-func rotateRefreshToken(cfg *config.Config, jwtSvc security.TokenService, userRepo repository.UserRepository, refreshRepo repository.RefreshTokenRepository, w http.ResponseWriter, r *http.Request) (string, error) {
+func rotateRefreshToken(
+	cfg *config.Config,
+	jwtSvc security.TokenService,
+	userRepo repository.UserRepository,
+	refreshRepo repository.RefreshTokenRepository,
+	w http.ResponseWriter,
+	r *http.Request,
+) (string, error) {
 	rtCookie, err := r.Cookie("refreshToken")
 	if err != nil || rtCookie.Value == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -100,7 +108,10 @@ func rotateRefreshToken(cfg *config.Config, jwtSvc security.TokenService, userRe
 		return "", err
 	}
 
-	jwtToken, err := jwtSvc.GenerateToken(user.Login, map[string]interface{}{"name": user.Name, "avatar": user.AvatarURL})
+	jwtToken, err := jwtSvc.GenerateToken(user.Login, map[string]interface{}{
+		"name":   user.Name,
+		"avatar": user.AvatarURL,
+	})
 	if err != nil {
 		http.Error(w, "failed to generate token", http.StatusInternalServerError)
 		return "", err
@@ -114,9 +125,15 @@ func rotateRefreshToken(cfg *config.Config, jwtSvc security.TokenService, userRe
 	}
 
 	// Delete old token only after new one is saved to prevent replay attacks.
+	// If Delete fails the old token will eventually expire (7-day TTL) and the
+	// background cleanup will remove it. The new token is already valid, so we
+	// log and continue rather than returning a 500 after cookies were issued.
 	if err = refreshRepo.Delete(r.Context(), oldRt); err != nil {
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return "", err
+		logger.Errorw("failed to delete old refresh token after rotation",
+			"old_token", oldRt.Token,
+			"user", user.Login,
+			"err", err,
+		)
 	}
 
 	cookies.Set(w, "token", jwtToken, 15*60, cfg)

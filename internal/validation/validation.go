@@ -3,8 +3,10 @@ package validation
 
 import (
 	"errors"
+	"fmt"
 	"slices"
 	"time"
+	"unicode"
 )
 
 // ParseISODate parses a date in YYYY-MM-DD format.
@@ -42,15 +44,33 @@ func ValidateDateRange(start, end string) (time.Time, time.Time, error) {
 	return s, e, nil
 }
 
-// ValidateRepositories ensures the repositories slice is not empty when provided.
+// ValidateRepositories ensures the repositories slice has no empty values.
 func ValidateRepositories(repos []string) error {
 	if len(repos) == 0 {
-		return nil // allow empty — caller can decide if required
+		return nil // allow empty — caller decides if required
 	}
-
 	if slices.Contains(repos, "") {
 		return errors.New("repositories cannot contain empty values")
 	}
+	return nil
+}
 
+// ValidateGitHubToken ensures the token only contains characters expected in a
+// GitHub personal access token (alphanumeric, underscore, hyphen) and is within
+// a reasonable length. This is a defence-in-depth check before the value reaches
+// a raw SQL string — the driver does not expose prepared statements.
+func ValidateGitHubToken(token string) error {
+	if token == "" {
+		return errors.New("token must not be empty")
+	}
+	const maxLen = 512
+	if len(token) > maxLen {
+		return fmt.Errorf("token exceeds maximum length of %d characters", maxLen)
+	}
+	for i, c := range token {
+		if !unicode.IsLetter(c) && !unicode.IsDigit(c) && c != '_' && c != '-' {
+			return fmt.Errorf("token contains invalid character %q at position %d", c, i)
+		}
+	}
 	return nil
 }

@@ -6,14 +6,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/farigab/bragdev-go/internal/domain"
 	"github.com/farigab/bragdev-go/internal/middleware"
 	"github.com/farigab/bragdev-go/internal/repository"
+	"github.com/farigab/bragdev-go/internal/validation"
 )
 
 // RegisterTokenRoutes registers GitHub token management endpoints.
 // Must be called on a router that already applies AuthWithRefresh so that
-// the user login is available in context — no manual JWT cookie reading required.
+// the user login is available in context.
 func RegisterTokenRoutes(r chi.Router, userRepo repository.UserRepository) {
 	h := &tokenHandler{userRepo: userRepo}
 	r.Post("/api/auth/github/token", h.handleSaveGitHubToken)
@@ -39,12 +39,17 @@ func (h *tokenHandler) handleSaveGitHubToken(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
-	if payload.Token == "" {
-		http.Error(w, "token must not be empty", http.StatusBadRequest)
+
+	// Validate before touching SQL — driver has no prepared statements.
+	if err := validation.ValidateGitHubToken(payload.Token); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	if _, err := h.userRepo.Save(r.Context(), &domain.User{Login: login, GitHubAccessToken: payload.Token}); err != nil {
+	// UpdateGitHubToken issues a targeted UPDATE so name/avatar_url are never
+	// overwritten — the previous Save(&User{Login: login, Token: t}) approach
+	// silently zeroed those columns on conflict.
+	if err := h.userRepo.UpdateGitHubToken(r.Context(), login, payload.Token); err != nil {
 		http.Error(w, "failed to save token", http.StatusInternalServerError)
 		return
 	}

@@ -33,7 +33,6 @@ type authHandler struct {
 }
 
 // RegisterAuthRoutes registers public authentication endpoints (OAuth flow + token refresh).
-// GitHub token save/clear endpoints are protected and registered separately via RegisterTokenRoutes.
 func RegisterAuthRoutes(r chi.Router, cfg *config.Config, oauth integration.OAuthService, jwtSvc security.TokenService, userRepo repository.UserRepository, refreshRepo repository.RefreshTokenRepository) {
 	h := &authHandler{cfg, oauth, jwtSvc, userRepo, refreshRepo}
 
@@ -46,15 +45,9 @@ func RegisterAuthRoutes(r chi.Router, cfg *config.Config, oauth integration.OAut
 func (h *authHandler) handleGitHubLogin(w http.ResponseWriter, r *http.Request) {
 	state := uuid.New().String()
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     "oauth_state",
-		Value:    state,
-		MaxAge:   300,
-		HttpOnly: true,
-		Secure:   h.cfg.CookieSecure,
-		SameSite: http.SameSiteLaxMode,
-		Path:     "/",
-	})
+	// Use cookies.Set so domain/secure/samesite settings come from config,
+	// consistent with every other cookie this app issues.
+	cookies.Set(w, "oauth_state", state, 300, h.cfg)
 
 	q := url.Values{}
 	q.Set("client_id", h.cfg.GitHubClientID)
@@ -154,7 +147,8 @@ func (h *authHandler) validateOAuthState(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "invalid state", http.StatusBadRequest)
 		return http.ErrNoCookie
 	}
-	http.SetCookie(w, &http.Cookie{Name: "oauth_state", MaxAge: -1, Path: "/"})
+	// Clear the state cookie after validation.
+	cookies.Set(w, "oauth_state", "", -1, h.cfg)
 	return nil
 }
 
@@ -234,15 +228,27 @@ func (h *authHandler) createRefreshToken(r *http.Request, userLogin string) (str
 	return token, nil
 }
 
+// loginFromCookie extracts the user login from the JWT cookie.
+// Uses ExtractUserLoginSafe so that an expired token still yields the login —
+// critical for logout paths where we must revoke refresh tokens even when the
+// access token has already expired.
 func (h *authHandler) loginFromCookie(r *http.Request) string {
 	cookie, err := r.Cookie("token")
 	if err != nil || cookie.Value == "" {
 		return ""
 	}
-	login, err := h.jwtSvc.ExtractUserLogin(cookie.Value)
-	if err != nil {
-		return ""
+
+	type safeExtractor interface {
+		ExtractUserLoginSafe(string) (string, error)
 	}
+
+	if svc, ok := h.jwtSvc.(safeExtractor); ok {
+		login, _ := svc.ExtractUserLoginSafe(cookie.Value)
+		return login
+	}
+
+	// Fallback for implementations that don't expose ExtractUserLoginSafe.
+	login, _ := h.jwtSvc.ExtractUserLogin(cookie.Value)
 	return login
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -47,6 +48,12 @@ type GitHubClient struct {
 	client  *http.Client
 	baseURL string
 	token   string
+
+	// nameOnce guards a single lazy fetch of the authenticated user's full name.
+	// Cached for the lifetime of this client instance so N-repo report generation
+	// does not trigger N extra /user API calls.
+	nameOnce   sync.Once
+	cachedName string
 }
 
 // NewGitHubClient creates a new GitHubClient using the provided token.
@@ -72,30 +79,41 @@ func (g *GitHubClient) newRequest(method, u string, body io.Reader) (*http.Reque
 	return req, nil
 }
 
-// getAuthenticatedUserName tries to fetch the authenticated user's full name.
-// It intentionally swallows errors and returns empty string on failure to
-// preserve the original tolerant behavior.
+// getAuthenticatedUserName returns the full name of the authenticated GitHub user.
+// The result is fetched once and cached for the lifetime of the client (sync.Once),
+// so repeated calls within the same request/report generation are free.
+// Errors are swallowed intentionally — an empty name simply disables name-based
+// author matching, falling back to login matching.
 func (g *GitHubClient) getAuthenticatedUserName() string {
 	if g.token == "" {
 		return ""
 	}
+	g.nameOnce.Do(func() {
+		g.cachedName = g.fetchAuthenticatedUserName()
+	})
+	return g.cachedName
+}
+
+// fetchAuthenticatedUserName performs the actual /user API call.
+// Separated from getAuthenticatedUserName so sync.Once wraps only this work.
+func (g *GitHubClient) fetchAuthenticatedUserName() string {
 	userURL := fmt.Sprintf("%s/user", g.baseURL)
-	reqUser, err := g.newRequest("GET", userURL, nil)
+	req, err := g.newRequest("GET", userURL, nil)
 	if err != nil {
 		return ""
 	}
-	respUser, err := g.client.Do(reqUser)
+	resp, err := g.client.Do(req)
 	if err != nil {
 		return ""
 	}
-	defer closeBody(respUser.Body)
-	if respUser.StatusCode != 200 {
+	defer closeBody(resp.Body)
+	if resp.StatusCode != 200 {
 		return ""
 	}
 	var u struct {
 		Name string `json:"name"`
 	}
-	if err := json.NewDecoder(respUser.Body).Decode(&u); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&u); err != nil {
 		return ""
 	}
 	return strings.TrimSpace(u.Name)
@@ -195,15 +213,19 @@ func (g *GitHubClient) countCommitsNoAuthor(ownerRepo string, since, until time.
 }
 
 // countCommitsAuthorFast tries the server-side author filter using per_page=1.
-// It returns (count, found, err) where found indicates whether the fast
-// attempt produced a conclusive result (even if zero).
+// Returns (count, found, err) where found indicates a conclusive result.
 func (g *GitHubClient) countCommitsAuthorFast(ownerRepo, author string, since, until time.Time) (int, bool, error) {
 	u := g.commitsPageURL(ownerRepo, 1, 1, since, until)
-	params := url.Values{}
-	params.Set("author", author)
-	if params.Encode() != "" {
-		u = u + "&" + params.Encode()
+
+	// Build author param via url.Values and append cleanly rather than manual string concat.
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return 0, true, err
 	}
+	q := parsed.Query()
+	q.Set("author", author)
+	parsed.RawQuery = q.Encode()
+	u = parsed.String()
 
 	req, err := g.newRequest("GET", u, nil)
 	if err != nil {
@@ -270,18 +292,20 @@ func (g *GitHubClient) countCommitsAuthorFallback(ownerRepo, author string, sinc
 
 // commitsPageURL builds the commits page URL with optional since/until params.
 func (g *GitHubClient) commitsPageURL(ownerRepo string, perPage, page int, since, until time.Time) string {
-	u := fmt.Sprintf(commitsPageFmt, g.baseURL, ownerRepo, perPage, page)
-	q := url.Values{}
+	base := fmt.Sprintf(commitsPageFmt, g.baseURL, ownerRepo, perPage, page)
+	parsed, err := url.Parse(base)
+	if err != nil {
+		return base
+	}
+	q := parsed.Query()
 	if !since.IsZero() {
 		q.Set("since", since.UTC().Format(time.RFC3339))
 	}
 	if !until.IsZero() {
 		q.Set("until", until.UTC().Format(time.RFC3339))
 	}
-	if q.Encode() != "" {
-		u = u + "&" + q.Encode()
-	}
-	return u
+	parsed.RawQuery = q.Encode()
+	return parsed.String()
 }
 
 // countMatchingCommits counts commits that match the author using existing heuristics.
@@ -347,7 +371,7 @@ func pageFromLinkPart(part string) int {
 }
 
 // fetchCommitsPage performs a GET for the given commits URL and decodes the
-// response into a slice of ghCommit. It returns the HTTP status code so callers
+// response into a slice of ghCommit. Returns the HTTP status code so callers
 // can distinguish 404 (not found) from other errors.
 func (g *GitHubClient) fetchCommitsPage(u string) ([]ghCommit, int, error) {
 	req, err := g.newRequest("GET", u, nil)
@@ -375,8 +399,8 @@ func (g *GitHubClient) fetchCommitsPage(u string) ([]ghCommit, int, error) {
 	return ghCommits, resp.StatusCode, nil
 }
 
-// commitMatchesAuthor applies the client-side heuristics to determine whether
-// the provided commit should be counted for the requested author.
+// commitMatchesAuthor applies client-side heuristics to determine whether
+// the commit should be counted for the requested author.
 func (g *GitHubClient) commitMatchesAuthor(c ghCommit, author, myName string) bool {
 	if author == "" {
 		return true
@@ -423,8 +447,7 @@ func ghCommitToCommitInfo(c ghCommit) CommitInfo {
 }
 
 // filterAndConvertCommits converts a slice of ghCommit to CommitInfo applying
-// the author filter (client-side). This keeps the pagination loop simple and
-// reduces cognitive complexity in callers.
+// the author filter (client-side).
 func (g *GitHubClient) filterAndConvertCommits(ghCommits []ghCommit, author, myName string) []CommitInfo {
 	out := make([]CommitInfo, 0, len(ghCommits))
 	for _, c := range ghCommits {
@@ -532,8 +555,6 @@ func isBetween(t, since, until time.Time) bool {
 }
 
 // fetchAllPulls paginates through the pulls API and returns all results.
-// If the repository is not found (404) it returns (nil, nil) to preserve
-// the previous behaviour where callers treat 404 as "no data".
 func (g *GitHubClient) fetchAllPulls(ownerRepo string, perPage int) ([]ghPull, error) {
 	var all []ghPull
 	for page := 1; ; page++ {
@@ -556,8 +577,7 @@ func (g *GitHubClient) fetchAllPulls(ownerRepo string, perPage int) ([]ghPull, e
 	return all, nil
 }
 
-// prMatchesFilters applies author and date-range filters to a PullRequestInfo
-// and returns true when the PR should be included.
+// prMatchesFilters applies author and date-range filters to a PullRequestInfo.
 func prMatchesFilters(pr PullRequestInfo, author string, since, until time.Time) bool {
 	if author != "" && !strings.EqualFold(pr.AuthorLogin, author) {
 		return false
@@ -574,9 +594,8 @@ func prMatchesFilters(pr PullRequestInfo, author string, since, until time.Time)
 	return false
 }
 
-// ListPullRequests returns pull requests for the given repository. If author
-// is provided, results will be filtered client-side. Date range filters are
-// applied to created_at and merged_at (inclusive).
+// ListPullRequests returns pull requests for the given repository filtered by
+// author and date range (created_at and merged_at, inclusive).
 func (g *GitHubClient) ListPullRequests(ownerRepo, author string, since, until time.Time) ([]PullRequestInfo, error) {
 	perPage := 100
 	ghPulls, err := g.fetchAllPulls(ownerRepo, perPage)
@@ -599,12 +618,11 @@ func (g *GitHubClient) ListPullRequests(ownerRepo, author string, since, until t
 }
 
 // ListCommitMessages returns commits (sha, message, author, date) for the
-// given repository. If author is provided, it will try a server-side filter
-// first and then fall back to client-side filtering similar to CountCommits.
+// given repository. Server-side author filter is tried first; falls back to
+// client-side filtering on empty results.
 //
 //nolint:gocyclo
 func (g *GitHubClient) ListCommitMessages(ownerRepo, author string, since, until time.Time) ([]CommitInfo, error) {
-	// Use smaller helpers to keep complexity low.
 	perPage := 100
 	myName := g.getAuthenticatedUserName()
 
@@ -614,26 +632,25 @@ func (g *GitHubClient) ListCommitMessages(ownerRepo, author string, since, until
 		} else if found {
 			return out, nil
 		}
-		// else fall through to full scan
 	}
 
 	return g.listCommitMessagesFullScan(ownerRepo, author, since, until, myName, perPage)
 }
 
 // listCommitMessagesServerSide queries commits using the server-side author filter.
-// Returns (results, found, err) where found indicates the server-side attempt
-// gave a conclusive result (even if zero).
 func (g *GitHubClient) listCommitMessagesServerSide(ownerRepo, author string, since, until time.Time, perPage int) ([]CommitInfo, bool, error) {
 	var out []CommitInfo
 	for page := 1; ; page++ {
-		u := g.commitsPageURL(ownerRepo, perPage, page, since, until)
-		params := url.Values{}
-		params.Set("author", author)
-		if params.Encode() != "" {
-			u = u + "&" + params.Encode()
+		base := g.commitsPageURL(ownerRepo, perPage, page, since, until)
+		parsed, err := url.Parse(base)
+		if err != nil {
+			return nil, true, err
 		}
+		q := parsed.Query()
+		q.Set("author", author)
+		parsed.RawQuery = q.Encode()
 
-		ghCommits, status, err := g.fetchCommitsPage(u)
+		ghCommits, status, err := g.fetchCommitsPage(parsed.String())
 		if err != nil {
 			return nil, true, err
 		}

@@ -21,6 +21,9 @@ type UserRepository interface {
 	FindByLogin(ctx context.Context, login string) (*domain.User, error)
 	Save(ctx context.Context, u *domain.User) (*domain.User, error)
 	ExistsByLogin(ctx context.Context, login string) (bool, error)
+	// UpdateGitHubToken updates only the github_access_token column, leaving
+	// all other fields (name, avatar_url) untouched.
+	UpdateGitHubToken(ctx context.Context, login, token string) error
 	ClearGitHubToken(ctx context.Context, login string) error
 }
 
@@ -158,6 +161,24 @@ func (r *SQLiteCloudUserRepo) ExistsByLogin(ctx context.Context, login string) (
 		return false, err
 	}
 	return count > 0, nil
+}
+
+// UpdateGitHubToken sets only the github_access_token for the given user without
+// touching name or avatar_url. Prefer this over Save when only the token changes
+// — using Save with an incomplete User struct would silently wipe those fields.
+func (r *SQLiteCloudUserRepo) UpdateGitHubToken(ctx context.Context, login, token string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := validateLogin(login); err != nil {
+		return err
+	}
+	q := fmt.Sprintf(
+		"UPDATE users SET github_access_token = '%s' WHERE login = '%s';",
+		sqlEscape(token),
+		sqlEscape(login),
+	)
+	return r.db.Execute(q)
 }
 
 // ClearGitHubToken sets the stored GitHub access token to empty for the given user.
