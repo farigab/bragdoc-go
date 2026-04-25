@@ -48,7 +48,7 @@ func ValidateRepositories(repos []string) error {
 		return nil // allow empty — caller can decide if required
 	}
 
-	if slices.Contains(repos, ""){
+	if slices.Contains(repos, "") {
 		return errors.New("repositories cannot contain empty values")
 	}
 

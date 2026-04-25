@@ -4,8 +4,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strings"
 	"slices"
+	"strings"
+
 	"github.com/farigab/bragdev-go/internal/config"
 )
 

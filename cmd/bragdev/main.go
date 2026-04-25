@@ -248,53 +248,39 @@ func sqlEscapeMain(s string) string {
 func splitStatements(sql string) []string {
 	var stmts []string
 	var cur strings.Builder
-	inQuote := false
 	i := 0
 
 	for i < len(sql) {
-		ch := sql[i]
-
-		switch {
-		// -- line comment: skip to end of line
-		case !inQuote && ch == '-' && i+1 < len(sql) && sql[i+1] == '-':
-			for i < len(sql) && sql[i] != '\n' {
-				i++
-			}
+		// Line comment: skip to end of line
+		if i+1 < len(sql) && sql[i] == '-' && sql[i+1] == '-' {
+			i = skipLineComment(sql, i)
 			continue
-
-		// /* block comment: skip to */
-		case !inQuote && ch == '/' && i+1 < len(sql) && sql[i+1] == '*':
-			i += 2
-			for i+1 < len(sql) && !(sql[i] == '*' && sql[i+1] == '/') {
-				i++
-			}
-			i += 2 // consume */
-			continue
-
-		// Opening single quote
-		case ch == '\'' && !inQuote:
-			inQuote = true
-			cur.WriteByte(ch)
-
-		// Escaped single quote '' inside a quoted string
-		case ch == '\'' && inQuote && i+1 < len(sql) && sql[i+1] == '\'':
-			cur.WriteByte(ch)
-			i++
-			cur.WriteByte(ch)
-
-		// Closing single quote
-		case ch == '\'' && inQuote:
-			inQuote = false
-			cur.WriteByte(ch)
-
-		// Statement separator outside a string
-		case ch == ';' && !inQuote:
-			stmts = append(stmts, cur.String())
-			cur.Reset()
-
-		default:
-			cur.WriteByte(ch)
 		}
+
+		// Block comment: skip to closing */
+		if i+1 < len(sql) && sql[i] == '/' && sql[i+1] == '*' {
+			i = skipBlockComment(sql, i)
+			continue
+		}
+
+		// Quoted string: write quoted content including escaped quotes
+		if sql[i] == '\'' {
+			i = writeQuoted(sql, i, &cur)
+			continue
+		}
+
+		// Statement separator outside quotes
+		if sql[i] == ';' {
+			s := strings.TrimSpace(cur.String())
+			if s != "" {
+				stmts = append(stmts, s)
+			}
+			cur.Reset()
+			i++
+			continue
+		}
+
+		cur.WriteByte(sql[i])
 		i++
 	}
 
@@ -302,4 +288,52 @@ func splitStatements(sql string) []string {
 		stmts = append(stmts, s)
 	}
 	return stmts
+}
+
+// skipLineComment advances i to the end of the current line or EOF.
+func skipLineComment(s string, i int) int {
+	for i < len(s) && s[i] != '\n' {
+		i++
+	}
+	return i
+}
+
+// skipBlockComment advances i past a /* ... */ block or to EOF.
+func skipBlockComment(s string, i int) int {
+	i += 2 // consume /*
+	for i+1 < len(s) && !(s[i] == '*' && s[i+1] == '/') {
+		i++
+	}
+	if i+1 < len(s) {
+		i += 2 // consume */
+	} else {
+		i = len(s)
+	}
+	return i
+}
+
+// writeQuoted writes a single-quoted SQL string to cur, handling escaped
+// single quotes (”), and returns the index after the closing quote.
+func writeQuoted(s string, i int, cur *strings.Builder) int {
+	cur.WriteByte('\'')
+	i++
+	for i < len(s) {
+		ch := s[i]
+		if ch == '\'' {
+			// Escaped quote '' -> write both and continue
+			if i+1 < len(s) && s[i+1] == '\'' {
+				cur.WriteByte('\'')
+				cur.WriteByte('\'')
+				i += 2
+				continue
+			}
+			// Closing quote
+			cur.WriteByte('\'')
+			i++
+			break
+		}
+		cur.WriteByte(ch)
+		i++
+	}
+	return i
 }
