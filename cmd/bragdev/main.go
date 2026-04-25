@@ -117,8 +117,6 @@ func main() {
 	}
 }
 
-// runMigrations executes all .sql files in dir in sorted order using SQLite Cloud.
-// Each file may contain multiple semicolon-delimited statements.
 func runMigrations(db *sqlitecloud.SQCloud, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -134,24 +132,29 @@ func runMigrations(db *sqlitecloud.SQCloud, dir string) error {
 	sort.Strings(names)
 
 	for _, n := range names {
-		p := dir + "/" + n
-		b, err := os.ReadFile(p)
-		if err != nil {
-			return fmt.Errorf("read migration %s: %w", n, err)
-		}
-
-		// Split into individual statements and execute each one.
-		stmts := splitStatements(string(b))
-		for _, stmt := range stmts {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-			if err := db.Execute(stmt); err != nil {
-				return fmt.Errorf("exec migration %s: %w", n, err)
-			}
+		if err := applyMigration(db, dir, n); err != nil {
+			return err
 		}
 		logger.Infow("applied migration", "migration", n)
+	}
+	return nil
+}
+
+// applyMigration reads and executes all statements in a single .sql file.
+func applyMigration(db *sqlitecloud.SQCloud, dir, name string) error {
+	b, err := os.ReadFile(dir + "/" + name)
+	if err != nil {
+		return fmt.Errorf("read migration %s: %w", name, err)
+	}
+
+	for _, stmt := range splitStatements(string(b)) {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+		if err := db.Execute(stmt); err != nil {
+			return fmt.Errorf("exec migration %s: %w", name, err)
+		}
 	}
 	return nil
 }
