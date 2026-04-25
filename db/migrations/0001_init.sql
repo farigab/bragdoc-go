@@ -1,19 +1,16 @@
--- initial schema based on JPA entities
-
 CREATE TABLE IF NOT EXISTS users (
-    login VARCHAR(100) PRIMARY KEY,
-    name TEXT NOT NULL,
-    avatar_url TEXT,
+    login               TEXT    PRIMARY KEY,
+    name                TEXT    NOT NULL,
+    avatar_url          TEXT,
     github_access_token TEXT
 );
 
-
 CREATE TABLE IF NOT EXISTS refresh_tokens (
-    token VARCHAR(36) PRIMARY KEY,
-    user_login VARCHAR(100) NOT NULL REFERENCES users(login),
-    expires_at TIMESTAMP NOT NULL,
-    created_at TIMESTAMP NOT NULL,
-    revoked BOOLEAN NOT NULL DEFAULT false
+    token      TEXT    PRIMARY KEY,
+    user_login TEXT    NOT NULL REFERENCES users(login),
+    expires_at TEXT    NOT NULL,   -- stored as RFC3339 / ISO-8601
+    created_at TEXT    NOT NULL,   -- stored as RFC3339 / ISO-8601
+    revoked    INTEGER NOT NULL DEFAULT 0  -- 0 = false, 1 = true
 );
 
 -- Indexes

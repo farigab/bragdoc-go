@@ -11,8 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jmoiron/sqlx"
-	_ "github.com/lib/pq"
+	sqlitecloud "github.com/sqlitecloud/sqlitecloud-go"
 
 	"github.com/farigab/bragdev-go/internal/config"
 	"github.com/farigab/bragdev-go/internal/handlers"
@@ -30,9 +29,14 @@ func main() {
 	// Initialize logger early so startup messages are visible and consistent
 	logger.Init(cfg.LogLevel)
 
-	db, err := sqlx.Connect("postgres", cfg.DBUrl)
+	if cfg.SQLiteCloudURL == "" {
+		logger.Errorf("SQLITECLOUD_URL environment variable must be set")
+		os.Exit(1)
+	}
+
+	db, err := sqlitecloud.Connect(cfg.SQLiteCloudURL)
 	if err != nil {
-		logger.Errorf("failed to connect to db: %v", err)
+		logger.Errorf("failed to connect to SQLite Cloud: %v", err)
 		os.Exit(1)
 	}
 	defer func() {
@@ -40,6 +44,8 @@ func main() {
 			logger.Errorf("failed to close db: %v", cerr)
 		}
 	}()
+
+	logger.Infow("connected to SQLite Cloud")
 
 	// Optionally run migrations if MIGRATE=true
 	if strings.ToLower(os.Getenv("MIGRATE")) == "true" {
@@ -61,8 +67,8 @@ func main() {
 	r.Get("/api/health", handlers.HealthHandler)
 
 	// wiring
-	userRepo := repository.NewPostgresUserRepo(db)
-	refreshRepo := repository.NewPostgresRefreshTokenRepo(db)
+	userRepo := repository.NewUserRepo(db)
+	refreshRepo := repository.NewRefreshTokenRepo(db)
 
 	jwtSvc := security.NewJWTService(cfg.JwtSecret, 900) // 15 minutes
 	oauthSvc := integration.NewGitHubOAuthService(cfg.GitHubClientID, cfg.GitHubClientSecret)
@@ -111,11 +117,14 @@ func main() {
 	}
 }
 
-func runMigrations(db *sqlx.DB, dir string) error {
+// runMigrations executes all .sql files in dir in sorted order using SQLite Cloud.
+// Each file may contain multiple semicolon-delimited statements.
+func runMigrations(db *sqlitecloud.SQCloud, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read migrations dir: %w", err)
 	}
+
 	var names []string
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
@@ -123,20 +132,62 @@ func runMigrations(db *sqlx.DB, dir string) error {
 		}
 	}
 	sort.Strings(names)
+
 	for _, n := range names {
 		p := dir + "/" + n
 		b, err := os.ReadFile(p)
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", n, err)
 		}
-		sql := string(b)
-		if strings.TrimSpace(sql) == "" {
-			continue
-		}
-		if _, err := db.Exec(sql); err != nil {
-			return fmt.Errorf("exec migration %s: %w", n, err)
+
+		// Split into individual statements and execute each one.
+		stmts := splitStatements(string(b))
+		for _, stmt := range stmts {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+			if err := db.Execute(stmt); err != nil {
+				return fmt.Errorf("exec migration %s: %w", n, err)
+			}
 		}
 		logger.Infow("applied migration", "migration", n)
 	}
 	return nil
+}
+
+// splitStatements splits a SQL script into individual statements by semicolon,
+// ignoring semicolons that appear inside single-quoted strings.
+func splitStatements(sql string) []string {
+	var stmts []string
+	var cur strings.Builder
+	inQuote := false
+
+	for i := 0; i < len(sql); i++ {
+		ch := sql[i]
+		switch {
+		case ch == '\'' && !inQuote:
+			inQuote = true
+			cur.WriteByte(ch)
+		case ch == '\'' && inQuote:
+			// Handle escaped single quote ('')
+			if i+1 < len(sql) && sql[i+1] == '\'' {
+				cur.WriteByte(ch)
+				i++
+				cur.WriteByte(ch)
+			} else {
+				inQuote = false
+				cur.WriteByte(ch)
+			}
+		case ch == ';' && !inQuote:
+			stmts = append(stmts, cur.String())
+			cur.Reset()
+		default:
+			cur.WriteByte(ch)
+		}
+	}
+	if s := strings.TrimSpace(cur.String()); s != "" {
+		stmts = append(stmts, s)
+	}
+	return stmts
 }

@@ -9,7 +9,7 @@ import (
 
 // Config armazena variáveis de ambiente usadas pela aplicação.
 type Config struct {
-	DBUrl               string
+	SQLiteCloudURL      string
 	JwtSecret           string
 	GitHubClientID      string
 	GitHubClientSecret  string
@@ -27,6 +27,7 @@ type Config struct {
 // Load carrega variáveis de ambiente (.env opcional) e retorna a configuração.
 func Load() *Config {
 	_ = godotenv.Load() // .env is optional; ignore load errors
+
 	gitHubRedirect := os.Getenv("GITHUB_OAUTH_REDIRECT_URI")
 	if gitHubRedirect == "" {
 		gitHubRedirect = "http://localhost:8080/api/auth/callback"
@@ -51,13 +52,14 @@ func Load() *Config {
 	if geminiURL == "" {
 		geminiURL = "https://generativelanguage.googleapis.com/v1"
 	}
+
 	geminiModel := os.Getenv("GEMINI_MODEL")
 	if geminiModel == "" {
 		geminiModel = "gemini-2.5-flash"
 	}
 
 	return &Config{
-		DBUrl:               os.Getenv("DB_URL"),
+		SQLiteCloudURL:      os.Getenv("DB_URL"),
 		JwtSecret:           os.Getenv("JWT_SECRET"),
 		GitHubClientID:      os.Getenv("GITHUB_OAUTH_CLIENT_ID"),
 		GitHubClientSecret:  os.Getenv("GITHUB_OAUTH_CLIENT_SECRET"),
