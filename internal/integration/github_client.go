@@ -144,61 +144,60 @@ type ghCommit struct {
 // ListRepositories returns the authenticated user's repositories as owner/name.
 func (g *GitHubClient) ListRepositories(ctx context.Context) ([]string, error) {
 	var out []string
-
 	perPage := 100
 
 	for page := 1; ; page++ {
-		// opcional: aborta antes da próxima página
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 
-		u := fmt.Sprintf(userReposFmt, g.baseURL, perPage, page)
-
-		req, err := g.newRequest(ctx, http.MethodGet, u, nil)
+		repos, last, err := g.fetchUserReposPage(ctx, perPage, page)
 		if err != nil {
 			return nil, err
 		}
-
-		resp, err := g.client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			b, _ := io.ReadAll(resp.Body)
-			closeBody(resp.Body)
-
-			return nil, fmt.Errorf(
-				formatListReposStatus,
-				resp.StatusCode,
-				string(b),
-			)
-		}
-
-		var repos []ghRepo
-
-		if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
-			closeBody(resp.Body)
-			return nil, err
-		}
-
-		closeBody(resp.Body)
-
 		if len(repos) == 0 {
 			break
 		}
-
 		for _, r := range repos {
 			out = append(out, r.FullName)
 		}
-
-		if len(repos) < perPage {
+		if last {
 			break
 		}
 	}
 
 	return out, nil
+}
+
+// fetchUserReposPage fetches a single page of the authenticated user's repos.
+// Returns the repos, whether this is the last page, and an error.
+func (g *GitHubClient) fetchUserReposPage(ctx context.Context, perPage, page int) ([]ghRepo, bool, error) {
+	u := fmt.Sprintf(userReposFmt, g.baseURL, perPage, page)
+	req, err := g.newRequest(ctx, http.MethodGet, u, nil)
+	if err != nil {
+		return nil, false, err
+	}
+
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return nil, false, err
+	}
+	defer closeBody(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, false, fmt.Errorf(formatListReposStatus, resp.StatusCode, string(b))
+	}
+
+	var repos []ghRepo
+	if err := json.NewDecoder(resp.Body).Decode(&repos); err != nil {
+		return nil, false, err
+	}
+
+	if len(repos) == 0 || len(repos) < perPage {
+		return repos, true, nil
+	}
+	return repos, false, nil
 }
 
 // countCommitsNoAuthor performs the fast count path when no author filter is provided.
