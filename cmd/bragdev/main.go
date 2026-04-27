@@ -17,6 +17,7 @@ import (
 	sqlitecloud "github.com/sqlitecloud/sqlitecloud-go"
 
 	"github.com/farigab/bragdev-go/internal/config"
+	appdb "github.com/farigab/bragdev-go/internal/db"
 	"github.com/farigab/bragdev-go/internal/handlers"
 	"github.com/farigab/bragdev-go/internal/integration"
 	"github.com/farigab/bragdev-go/internal/logger"
@@ -69,8 +70,9 @@ func main() {
 
 	r.Get("/api/health", handlers.HealthHandler)
 
-	userRepo := repository.NewUserRepo(db)
-	refreshRepo := repository.NewRefreshTokenRepo(db)
+	appDB := appdb.New(db)
+	userRepo := repository.NewUserRepo(appDB)
+	refreshRepo := repository.NewRefreshTokenRepo(appDB)
 
 	oauthSvc := integration.NewGitHubOAuthService(cfg.GitHubClientID, cfg.GitHubClientSecret)
 	geminiClient := integration.NewGeminiClient(cfg.GeminiAPIKey, cfg.GeminiAPIURL, cfg.GeminiModel)

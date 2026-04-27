@@ -127,16 +127,17 @@ func (h *authHandler) handleRefresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *authHandler) handleLogout(w http.ResponseWriter, r *http.Request) {
-    if login := h.loginFromCookie(r); login != "" {
-        _ = h.refreshRepo.DeleteAllByUserLogin(r.Context(), login)
-    } else if rt, err := r.Cookie("refreshToken"); err == nil && rt.Value != "" {
-        if found, err := h.refreshRepo.FindByToken(r.Context(), rt.Value); err == nil {
-            _ = h.refreshRepo.Delete(r.Context(), found)
-        }
-    }
-    cookies.ClearAuth(w, h.cfg)
-    w.WriteHeader(http.StatusOK)
+	if login := h.loginFromCookie(r); login != "" {
+		_ = h.refreshRepo.DeleteAllByUserLogin(r.Context(), login)
+	} else if rt, err := r.Cookie("refreshToken"); err == nil && rt.Value != "" {
+		if found, err := h.refreshRepo.FindByToken(r.Context(), rt.Value); err == nil {
+			_ = h.refreshRepo.Delete(r.Context(), found)
+		}
+	}
+	cookies.ClearAuth(w, h.cfg)
+	w.WriteHeader(http.StatusOK)
 }
+
 // --- private helpers ---------------------------------------------------------
 
 func (h *authHandler) validateOAuthState(w http.ResponseWriter, r *http.Request) error {
