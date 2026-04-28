@@ -10,7 +10,7 @@ import (
 // Set writes an HttpOnly cookie with settings derived from cfg.
 // Use maxAge=-1 to delete the cookie.
 func Set(w http.ResponseWriter, name, value string, maxAge int, cfg *config.Config) {
-	secure := false
+	secure := true
 	sameSite := http.SameSiteLaxMode
 	var domain string
 	if cfg != nil {

@@ -18,6 +18,11 @@ func CORSMiddleware(cfg *config.Config) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
 
+			if origin != "" && len(allowedOrigins) == 0 {
+				http.Error(w, "origin not allowed", http.StatusForbidden)
+				return
+			}
+
 			setOriginHeaders(w, origin, allowedOrigins)
 			setAllowHeaders(w, r)
 
@@ -77,7 +82,7 @@ func isOriginAllowed(origin string, allowedOrigins []string) bool {
 // based on the configured allowed origins.
 func setOriginHeaders(w http.ResponseWriter, origin string, allowedOrigins []string) {
 	if len(allowedOrigins) == 0 {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// No whitelist configured: do not set CORS headers.
 		return
 	}
 	if origin != "" && isOriginAllowed(origin, allowedOrigins) {
@@ -103,6 +108,10 @@ func setAllowHeaders(w http.ResponseWriter, r *http.Request) {
 // request when a specific origin whitelist is configured and the request origin
 // is not on it; otherwise it responds with 204 No Content.
 func handlePreflight(w http.ResponseWriter, origin string, allowedOrigins []string) {
+	if origin != "" && len(allowedOrigins) == 0 {
+		http.Error(w, "origin not allowed", http.StatusForbidden)
+		return
+	}
 	if len(allowedOrigins) > 0 && origin != "" && !isOriginAllowed(origin, allowedOrigins) {
 		http.Error(w, "origin not allowed", http.StatusForbidden)
 		return
