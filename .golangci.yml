@@ -23,7 +23,7 @@ linters-settings:
       - "(*json.Encoder).Encode"
       - "(*json.Decoder).Decode"
   goimports:
-    local-prefixes: github.com/farigab/bragdev-go
+    local-prefixes: bragdev-go
 
 issues:
   exclude-use-default: false

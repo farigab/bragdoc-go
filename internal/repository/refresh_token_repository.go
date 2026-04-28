@@ -5,8 +5,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/farigab/bragdev-go/internal/db"
-	"github.com/farigab/bragdev-go/internal/domain"
+	"bragdev-go/internal/db"
+	"bragdev-go/internal/domain"
 )
 
 // RefreshTokenRepository defines operations for refresh tokens.

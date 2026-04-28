@@ -4,7 +4,7 @@ package cookies
 import (
 	"net/http"
 
-	"github.com/farigab/bragdev-go/internal/config"
+	"bragdev-go/internal/config"
 )
 
 // Set writes an HttpOnly cookie with settings derived from cfg.

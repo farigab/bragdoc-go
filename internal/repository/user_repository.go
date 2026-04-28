@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/farigab/bragdev-go/internal/db"
-	"github.com/farigab/bragdev-go/internal/domain"
+	"bragdev-go/internal/db"
+	"bragdev-go/internal/domain"
 )
 
 var loginPattern = regexp.MustCompile(`^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,37}[a-zA-Z0-9])?$|^[a-zA-Z0-9]$`)

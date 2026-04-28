@@ -1,4 +1,4 @@
-module github.com/farigab/bragdev-go
+module bragdev-go
 
 go 1.21
 

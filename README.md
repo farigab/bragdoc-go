@@ -41,7 +41,7 @@
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/farigab/bragdev-go.git
+git clone https://bragdev-go.git
 cd bragdev
 ```
 

@@ -16,15 +16,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	sqlitecloud "github.com/sqlitecloud/sqlitecloud-go"
 
-	"github.com/farigab/bragdev-go/internal/config"
-	appdb "github.com/farigab/bragdev-go/internal/db"
-	"github.com/farigab/bragdev-go/internal/handlers"
-	"github.com/farigab/bragdev-go/internal/integration"
-	"github.com/farigab/bragdev-go/internal/logger"
-	appMiddleware "github.com/farigab/bragdev-go/internal/middleware"
-	"github.com/farigab/bragdev-go/internal/repository"
-	"github.com/farigab/bragdev-go/internal/security"
-	"github.com/farigab/bragdev-go/internal/usecase"
+	"bragdev-go/internal/config"
+	appdb "bragdev-go/internal/db"
+	"bragdev-go/internal/handlers"
+	"bragdev-go/internal/integration"
+	"bragdev-go/internal/logger"
+	appMiddleware "bragdev-go/internal/middleware"
+	"bragdev-go/internal/repository"
+	"bragdev-go/internal/security"
+	"bragdev-go/internal/usecase"
 )
 
 func main() {

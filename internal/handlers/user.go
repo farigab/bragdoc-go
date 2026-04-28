@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/farigab/bragdev-go/internal/logger"
-	"github.com/farigab/bragdev-go/internal/middleware"
-	"github.com/farigab/bragdev-go/internal/repository"
+	"bragdev-go/internal/logger"
+	"bragdev-go/internal/middleware"
+	"bragdev-go/internal/repository"
 )
 
 // RegisterUserRoutes registers user-related endpoints.

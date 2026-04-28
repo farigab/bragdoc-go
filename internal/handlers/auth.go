@@ -9,13 +9,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"github.com/farigab/bragdev-go/internal/config"
-	"github.com/farigab/bragdev-go/internal/cookies"
-	"github.com/farigab/bragdev-go/internal/domain"
-	"github.com/farigab/bragdev-go/internal/integration"
-	"github.com/farigab/bragdev-go/internal/logger"
-	"github.com/farigab/bragdev-go/internal/repository"
-	"github.com/farigab/bragdev-go/internal/security"
+	"bragdev-go/internal/config"
+	"bragdev-go/internal/cookies"
+	"bragdev-go/internal/domain"
+	"bragdev-go/internal/integration"
+	"bragdev-go/internal/logger"
+	"bragdev-go/internal/repository"
+	"bragdev-go/internal/security"
 )
 
 const (

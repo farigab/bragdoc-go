@@ -5,8 +5,8 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/farigab/bragdev-go/internal/httpresp"
-	"github.com/farigab/bragdev-go/internal/logger"
+	"bragdev-go/internal/httpresp"
+	"bragdev-go/internal/logger"
 )
 
 type responseWriter struct {

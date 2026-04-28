@@ -4,7 +4,7 @@ package integration
 import (
 	"io"
 
-	"github.com/farigab/bragdev-go/internal/logger"
+	"bragdev-go/internal/logger"
 )
 
 // closeBody closes an io.Closer and logs any error using the application logger.

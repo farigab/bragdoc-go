@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/farigab/bragdev-go/internal/middleware"
-	"github.com/farigab/bragdev-go/internal/repository"
-	"github.com/farigab/bragdev-go/internal/validation"
+	"bragdev-go/internal/middleware"
+	"bragdev-go/internal/repository"
+	"bragdev-go/internal/validation"
 )
 
 // RegisterTokenRoutes registers GitHub token management endpoints.
