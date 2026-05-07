@@ -153,6 +153,17 @@ The report endpoint returns a JSON object containing `aiGeneratedReport`,
 - Cookies are set with `HttpOnly` and `SameSite=Lax` by default. Set
   `APP_COOKIE_SECURE=true` and a proper `APP_COOKIE_DOMAIN` for production.
 
+Note about `Set-Cookie` in browser devtools:
+
+- Browsers always show `Set-Cookie` headers and cookies in the Network/Storage
+  panels. Seeing a `token` or `refreshToken` there does not mean the cookie is
+  accessible to frontend JavaScript. These cookies are set with `HttpOnly`, so
+  they cannot be read or modified by client-side scripts — only the browser
+  sends them automatically with requests to the backend.
+
+  Ensure you serve the app over HTTPS in production and set `APP_COOKIE_SECURE`
+  to `true` so cookies are only sent over secure channels.
+
 ## Configuration (environment variables)
 
 - `DB_URL` — Postgres connection URL (required)
